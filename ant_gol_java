@@ -1,0 +1,196 @@
+import java.applet.*;
+import java.awt.*;
+import java.math.*;
+import java.lang.*;
+import java.util.Random;
+/*      <applet code="gol" width=2000 height=950>
+         </applet>
+*/
+public class gol extends Applet implements Runnable {
+  //initializing parameters      
+  double dt,t;
+
+  Dimension size;                  // The size of the applet
+  Image buffer;                    // The off-screen image for double-buffering
+  Graphics2D big;
+  Graphics bufferGraphics;         // A Graphics object for the buffer
+  Thread animator;                 // Thread that performs the animation
+  Color background, deadCol, liveCol;
+  boolean please_stop=false;
+
+  int row=128;
+  int col=128;
+  int cellSize;
+  int space=1;
+  boolean [][] now = new boolean [row][col];
+  boolean [][] next = new boolean [row][col];
+
+  /** Set up an off-screen Image for double-buffering */
+  public void init() {
+
+    //initial conditions
+    size = this.size();
+    buffer = this.createImage(size.width, size.height);
+
+    if (((int)Math.floor((double)(size.width-col))/(double)(col))<((double)(size.height-row)/(double)(row)))
+    {
+      cellSize=(int)Math.floor((double)(size.width-col)/(double)(col));
+    }
+    else
+    {
+      cellSize=(int)Math.floor((double)(size.height-row)/(double)(row));
+    }
+
+    bufferGraphics = buffer.getGraphics();
+    background = new Color(255,255,255); //white background
+    deadCol=new Color(180,255,206);
+    liveCol=new Color(60,179,113);
+    setBackground(background);
+    t=0;
+    dt=.05; 
+
+    //initialise all cells as dead
+      for (int i=0; i<row;i++)
+      {
+        for(int j=0;j<col;j++)
+        {
+          now[i][j]=false;
+        }
+      }
+
+      //initialise starting live cells
+      //***************Gosper glider gun***********************
+      int [][] ini = {{14,2},{14,3},{15,2},{15,3},{12,15},{12,14},{13,13},{14,12},{15,12},{16,12},{17,13},{18,14},{18,15},{13,17},{14,18},{15,16},{15,18},{15,19},{16,18},{17,17},{10,26},{11,24},{11,26},{12,22},{12,23},{13,22},{13,23},{14,22},{14,23},{15,24},{15,26},{16,26},{12,36},{12,37},{13,36},{13,37}};
+      
+      //***************r-pentomino*************************
+      //int [][]ini = {{col/2,row/2-1},{col/2+1,row/2+1},{col/2-1,row/2},{col/2,row/2},{col/2,row/2+1}};
+
+      //***************other guns*********************
+      //***************1 cell high gun****************
+      //int ini[][]={{row/2,1},{row/2,2},{row/2,3},{row/2,4},{row/2,5},{row/2,6},{row/2,7},{row/2,8},{row/2,10},{row/2,11},{row/2,12},{row/2,13},{row/2,14},{row/2,18},{row/2,19},{row/2,20},{row/2,27},{row/2,28},{row/2,29},{row/2,30},{row/2,31},{row/2,32},{row/2,33},{row/2,35},{row/2,36},{row/2,37},{row/2,38},{row/2,39}};
+      
+      for (int i=0; i<ini.length;i++)
+      {
+        now[ini[i][0]][ini[i][1]]=true;
+      }
+    
+  }
+
+  /** Draw the circle at its current position, using double-buffering */
+  public void paint(Graphics g) {
+      Graphics2D g2 = (Graphics2D) g;
+      // Draw into the off-screen buffer.
+      bufferGraphics.setColor(background);
+      // clear the buffer
+      bufferGraphics.fillRect(0, 0, 6*size.width, 6*size.height); 
+      
+      //graphics for grid
+
+      for (int i=0; i<row;i++)
+      {
+        for(int j=0;j<col;j++)
+        {
+          if (now[i][j])
+            bufferGraphics.setColor(liveCol);
+          else
+            bufferGraphics.setColor(deadCol);
+
+          bufferGraphics.fillRect((cellSize+space)*j,(cellSize+space)*i,cellSize,cellSize);//j i because (x,y) but by convention (rows,col)
+        }
+      }
+      
+
+      g2.drawImage(buffer, 0, 0, this);
+  }
+
+  public void update(Graphics g) { paint(g); }
+
+  /** The body of the animation thread */
+  public void run() {
+    while(!please_stop) {  
+
+      //cellular rules
+      for (int i=0; i<row;i++)
+      {
+        for(int j=0;j<col;j++)
+        {
+          //getting the neighbours(gol = 8)
+          next[i][j]=false;//clean up next array
+
+          //int nn[][]={{i-1,j-1},{i-1,j},{i-1,j+1},{i,j-1},{i,j+1},{i+1,j-1},{i+1,j},{i+1,j+1}};
+          int nn[][]={{mod(i-1,row),mod(j-1,col)},{mod(i-1,row),j},{mod(i-1,row),mod(j+1,col)},{i,mod(j-1,col)},{i,mod(j+1,col)},{mod(i+1,row),mod(j-1,col)},{mod(i+1,row),j},{mod(i+1,row),mod(j+1,col)}};
+
+          //count alive
+          int nalive=0;
+          for (int r=0; r<nn.length;r++)
+          {
+            if (now[nn[r][0]][nn[r][1]])
+            {
+              nalive++;
+            }
+          }
+
+          if(now[i][j])//alive rule
+          {
+            if ((nalive==2)||(nalive==3))
+            {
+              next[i][j]=true;
+            }
+          }
+          else//dead rule
+          {
+            if (nalive==3)
+            {
+              next[i][j]=true;
+            }
+          }
+
+        }
+      }
+
+      for (int i=0; i<row;i++)
+      {
+        for(int j=0;j<col;j++)
+        {
+          now[i][j]=next[i][j];
+        }
+      }
+
+      repaint();
+
+      try {
+      Thread.sleep(30);
+      } catch (InterruptedException e) { ; }
+    }
+    animator = null;
+  }
+
+  /** Start the animation thread */
+  public void start() {
+    if (animator == null) {
+      please_stop = false;
+      animator = new Thread(this);
+      animator.start();
+    }
+  }
+
+  /** Stop the animation thread */
+  public void stop() { please_stop = true; }
+
+  /** Allow the user to start and stop the animation by clicking */
+  public boolean mouseDown(Event e, int x, int y) {
+    if (animator != null) please_stop = true;  // if running request a stop
+    else start();                              // otherwise start it.
+    return true;
+  }
+
+  public int mod (int a, int b)
+  {
+    int d=a%b;
+    if (d<0)
+      d=d+b;
+
+    return(d);
+
+  }
+}
